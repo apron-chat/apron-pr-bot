@@ -18,9 +18,10 @@ inputs:
     required: false
     default: general
   server-url:
-    description: The Apron server's WebSocket URL.
-    required: false
-    default: wss://server.apron.chat/
+    description: >
+      The Apron server's WebSocket URL, such as wss://chat.example.com/. There
+      is no default, so no project posts to a server it did not choose.
+    required: true
 
 runs:
   using: node24
