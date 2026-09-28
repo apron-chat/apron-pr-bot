@@ -2,8 +2,9 @@
 
 A GitHub Action that announces merged pull requests in a room on your
 [Apron](https://github.com/apron-chat/apron-server-cloudflare) chat server as
-a bot. By default each announcement bolds the pull request's title, links
-to it, and carries a link preview (`og` title, description, site name, and
+a bot. By default each announcement names the repository and pull request,
+bolds its title, credits its author, sizes the change, and links to it, with
+a link preview (`og` title, description, site name, and
 image) built from the pull request. The description is the first paragraph of
 the pull request body that is not only headings, or a commit and line-count
 summary when there is none. The text of the announcement is a
@@ -48,12 +49,12 @@ request's text reaches it only as event JSON data. It also works on
 
 ## Inputs
 
-| Input        | Default   | Description |
-| ------------ | --------- | ----------- |
-| `server-url` | required  | Your Apron server's WebSocket URL, such as `wss://chat.example.com/`. |
-| `token`      | `''`      | Bot token from `/invite-bot`. When empty the action logs a notice and succeeds without posting. |
-| `room-id`    | `general` | The room to post in. |
-| `template`   | see below | The markdown text of the announcement; see [Templates](#templates). |
+| Input        | Default                     | Description |
+| ------------ | --------------------------- | ----------- |
+| `server-url` | required                    | Your Apron server's WebSocket URL, such as `wss://chat.example.com/`. |
+| `token`      | `''`                        | Bot token from `/invite-bot`. When empty the action logs a notice and succeeds without posting. |
+| `room-id`    | `general`                   | The room to post in. |
+| `template`   | see [Templates](#templates) | The markdown text of the announcement. |
 
 The request ID is stable per repository and pull request, so rerunning the
 job within the server's deduplication window does not post twice.
@@ -61,15 +62,15 @@ job within the server's deduplication window does not post twice.
 ## Templates
 
 The `template` input sets the markdown text of the announcement. The link
-preview below it stays the same. The default is:
+preview (`og` embed) for the pull request is attached either way. The default
+is:
 
 ```
-Merged into ${base}: **${title}** by ${author}
-
-<${url}>
+🚢 ${repo}#${number}: **${title}** by ${author} (+${additions} −${deletions})
+${url}
 ```
 
-For example, to lead with the repository and the size of the change:
+For example, to name the branch it merged into and who merged it:
 
 ```yaml
       - uses: apron-chat/apron-pr-bot@main
@@ -77,7 +78,7 @@ For example, to lead with the repository and the size of the change:
           server-url: wss://chat.example.com/
           token: ${{ secrets.APRON_BOT_TOKEN }}
           template: |
-            🚢 ${repo}#${number}: **${title}** (+${additions} −${deletions})
+            Merged into ${base} by ${merged_by}: **${title}**
             ${url}
 ```
 

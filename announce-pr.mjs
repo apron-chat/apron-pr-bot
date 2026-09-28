@@ -12,7 +12,9 @@ import { fileURLToPath } from 'node:url';
 const DEFAULT_ROOM = 'general';
 const TIMEOUT_MS = 30_000;
 const DESCRIPTION_CODE_POINTS = 300;
-export const DEFAULT_TEMPLATE = 'Merged into ${base}: **${title}** by ${author}\n\n<${url}>';
+// The `template` input's default in action.yml, for when it is empty or the
+// script runs outside an action.
+export const DEFAULT_TEMPLATE = '🚢 ${repo}#${number}: **${title}** by ${author} (+${additions} −${deletions})\n${url}';
 
 /** `text` as one line of at most `max` code points, or '' when empty. */
 export function oneLine(text, max) {

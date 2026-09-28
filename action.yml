@@ -20,11 +20,12 @@ inputs:
   template:
     description: >
       The markdown text of the announcement, with ${name} placeholders such as
-      ${title}, ${author}, and ${url}; see the README for the full list.
-      Defaults to "Merged into ${base}: **${title}** by ${author}" and the link
-      below it.
+      ${title}, ${author}, and ${url}; see the README for the full list. The
+      link preview below it does not depend on the template.
     required: false
-    default: ''
+    default: |-
+      🚢 ${repo}#${number}: **${title}** by ${author} (+${additions} −${deletions})
+      ${url}
   server-url:
     description: >
       The Apron server's WebSocket URL, such as wss://chat.example.com/. There
