@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 const DEFAULT_ROOM = 'general';
 const TIMEOUT_MS = 30_000;
 const DESCRIPTION_CODE_POINTS = 300;
-export const DEFAULT_TEMPLATE = 'Merged into {base}: **{title}** by {author}\n\n<{url}>';
+export const DEFAULT_TEMPLATE = 'Merged into ${base}: **${title}** by ${author}\n\n<${url}>';
 
 /** `text` as one line of at most `max` code points, or '' when empty. */
 export function oneLine(text, max) {
@@ -41,7 +41,7 @@ export function firstParagraph(text) {
 }
 
 /**
- * The values for `{name}` placeholders in a template, for merged pull request
+ * The values for `${name}` placeholders in a template, for merged pull request
  * `pr` of `repo`. Text from the pull request is markdown-escaped, so it cannot
  * add its own formatting; `url` is left as is for links and autolinks.
  */
@@ -63,14 +63,21 @@ export function placeholders(pr, repo) {
 }
 
 /**
- * `template` with each `{name}` replaced by `values[name]`. Braces around
- * anything but a lowercase name are left as is; an unknown name throws, so a
- * typo fails the run instead of posting it.
+ * `template` with each `${name}` replaced by `values[name]`, in the syntax of
+ * a JavaScript template literal but never evaluated. Anything else inside
+ * `${…}`, an unclosed `${`, or an unknown name throws, so a typo fails the run
+ * instead of posting it, and a template that renders now keeps its meaning
+ * if templates are ever evaluated as template literals.
  */
 export function render(template, values) {
-	return template.replace(/\{([a-z_]+)\}/g, (match, name) => {
+	const known = () => Object.keys(values).map((key) => `\${${key}}`).join(', ');
+	return template.replace(/\$\{([^}]*)\}|\$\{/g, (match, expression) => {
+		const name = expression?.trim();
+		if (!name || !/^[A-Za-z_$][\w$]*$/.test(name)) {
+			throw new Error(`Unsupported template placeholder ${match}; only \${name} is supported, one of ${known()}.`);
+		}
 		if (!Object.hasOwn(values, name)) {
-			throw new Error(`Unknown template placeholder ${match}; use one of ${Object.keys(values).map((key) => `{${key}}`).join(', ')}.`);
+			throw new Error(`Unknown template placeholder ${match}; use one of ${known()}.`);
 		}
 		return values[name];
 	});

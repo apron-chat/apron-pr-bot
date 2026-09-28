@@ -64,9 +64,9 @@ The `template` input sets the markdown text of the announcement. The link
 preview below it stays the same. The default is:
 
 ```
-Merged into {base}: **{title}** by {author}
+Merged into ${base}: **${title}** by ${author}
 
-<{url}>
+<${url}>
 ```
 
 For example, to lead with the repository and the size of the change:
@@ -77,29 +77,37 @@ For example, to lead with the repository and the size of the change:
           server-url: wss://chat.example.com/
           token: ${{ secrets.APRON_BOT_TOKEN }}
           template: |
-            🚢 {repo}#{number}: **{title}** (+{additions} −{deletions})
-            {url}
+            🚢 ${repo}#${number}: **${title}** (+${additions} −${deletions})
+            ${url}
 ```
 
-| Placeholder     | Value |
-| --------------- | ----- |
-| `{title}`       | The pull request's title, on one line. |
-| `{author}`      | The login of the pull request's author. |
-| `{merged_by}`   | The login of whoever merged it (the author when unknown). |
-| `{url}`         | The pull request's URL. |
-| `{number}`      | The pull request's number. |
-| `{repo}`        | The repository, as `owner/name`. |
-| `{base}`        | The branch it merged into. |
-| `{head}`        | The branch it merged from. |
-| `{description}` | The first paragraph of its body that is not only headings, on one line, or empty. |
-| `{commits}`     | Its number of commits. |
-| `{additions}`   | Lines added. |
-| `{deletions}`   | Lines deleted. |
+| Placeholder      | Value |
+| ---------------- | ----- |
+| `${title}`       | The pull request's title, on one line. |
+| `${author}`      | The login of the pull request's author. |
+| `${merged_by}`   | The login of whoever merged it (the author when unknown). |
+| `${url}`         | The pull request's URL. |
+| `${number}`      | The pull request's number. |
+| `${repo}`        | The repository, as `owner/name`. |
+| `${base}`        | The branch it merged into. |
+| `${head}`        | The branch it merged from. |
+| `${description}` | The first paragraph of its body that is not only headings, on one line, or empty. |
+| `${commits}`     | Its number of commits. |
+| `${additions}`   | Lines added. |
+| `${deletions}`   | Lines deleted. |
 
-Every value except `{url}` and the numbers is markdown-escaped, so a title or
-description cannot add its own formatting. An unknown `{placeholder}` fails
-the run, even without a token, so a typo does not get posted. Braces around
-anything other than a lowercase name, such as `{ this }`, are left as they are.
+Every value except `${url}` and the numbers is markdown-escaped, so a title or
+description cannot add its own formatting. Placeholders use JavaScript
+template literal syntax, but the template is never evaluated: only a plain
+`${name}` from the table is allowed. An unknown name, any other expression
+such as `${title.length}`, or an unclosed `${` fails the run, even without a
+token, so a mistake does not get posted. Everything outside `${…}`, including
+backticks and backslashes, is used as is.
+
+Use these placeholders rather than GitHub expressions such as
+`${{ github.event.pull_request.title }}`: GitHub pastes those into the
+template before the action runs, so the pull request's text would skip the
+escaping and could break the template.
 
 ## Development
 

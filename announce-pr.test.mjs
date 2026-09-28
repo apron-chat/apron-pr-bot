@@ -67,16 +67,19 @@ test('reads action inputs before their environment fallbacks', () => {
 });
 
 test('renders a custom template with escaped pull request values', () => {
-	const template = '{repo}#{number}: {title} (+{additions} −{deletions}, {commits} commit)\n{description}\n{url} { spaced } {Not}';
-	const params = announcement({ ...pr, title: 'Use *stars*' }, 'o/my_repo', 'general', template);
-	assert.equal(params.body.text, `o/my\\_repo#12: Use \\*stars\\* (+10 −2, 1 commit)\nPosts each merged PR to the \\\`general\\\` room.\n${pr.html_url} { spaced } {Not}`);
-	assert.equal(params.body.embeds[0].og.title, 'Use *stars* · Pull Request #12');
+	const template = '${repo}#${number}: ${ title } (+${additions} −${deletions}, ${commits} commit)\n${description}\n${url} {title} $title `code`';
+	const params = announcement({ ...pr, title: 'Use *stars* ${author}' }, 'o/my_repo', 'general', template);
+	assert.equal(params.body.text, `o/my\\_repo#12: Use \\*stars\\* \${author} (+10 −2, 1 commit)\nPosts each merged PR to the \\\`general\\\` room.\n${pr.html_url} {title} $title \`code\``);
+	assert.equal(params.body.embeds[0].og.title, 'Use *stars* ${author} · Pull Request #12');
 });
 
-test('fills every placeholder and rejects unknown ones', () => {
+test('fills every placeholder and rejects anything else', () => {
 	const values = placeholders({ ...pr, merged_by: { login: 'maintainer' }, head: { ref: 'feature_x' } }, 'o/r');
-	assert.equal(render('{merged_by} merged {head} into {base}', values), 'maintainer merged feature\\_x into main');
+	assert.equal(render('${merged_by} merged ${head} into ${base}', values), 'maintainer merged feature\\_x into main');
 	assert.equal(placeholders(pr, 'o/r').merged_by, 'shazow');
 	assert.equal(placeholders({ ...pr, body: null }, 'o/r').description, '');
-	assert.throws(() => render('{titel}', values), /Unknown template placeholder \{titel\}; use one of \{title\}/);
+	assert.throws(() => render('${titel}', values), /Unknown template placeholder \$\{titel\}; use one of \$\{title\}/);
+	assert.throws(() => render('${title.length}', values), /Unsupported template placeholder \$\{title\.length\}/);
+	assert.throws(() => render('${}', values), /Unsupported/);
+	assert.throws(() => render('${title', values), /Unsupported template placeholder \$\{;/);
 });
