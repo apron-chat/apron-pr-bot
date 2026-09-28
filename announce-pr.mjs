@@ -2,13 +2,12 @@
 // preview (`og`) built from the pull request itself. The entry point of the
 // action in action.yml, run on `pull_request_target` (or `pull_request`)
 // `closed`: reads the event from GITHUB_EVENT_PATH and the `token`,
-// `room-id`, and `server-url` inputs from the environment, and does nothing
-// when the token is empty. Outside an action, APRON_BOT_TOKEN, APRON_ROOM_ID,
+// `room-id`, and `server-url` inputs from the environment. Fails without a
+// server URL, and does nothing when the token is empty. Outside an action, APRON_BOT_TOKEN, APRON_ROOM_ID,
 // and APRON_URL stand in for the inputs.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const DEFAULT_URL = 'wss://server.apron.chat/';
 const DEFAULT_ROOM = 'general';
 const TIMEOUT_MS = 30_000;
 const DESCRIPTION_CODE_POINTS = 300;
@@ -112,6 +111,8 @@ export function input(name, fallback, env = process.env) {
 }
 
 async function main() {
+	const url = input('server-url', 'APRON_URL');
+	if (!url) throw new Error('The server-url input is required (APRON_URL outside an action).');
 	const token = input('token', 'APRON_BOT_TOKEN');
 	if (!token) {
 		// Announcing is opt-in: forks and repositories without the secret skip it.
@@ -125,7 +126,6 @@ async function main() {
 		return;
 	}
 	const repo = event.repository?.full_name ?? process.env.GITHUB_REPOSITORY;
-	const url = input('server-url', 'APRON_URL') || DEFAULT_URL;
 	const params = announcement(pr, repo, input('room-id', 'APRON_ROOM_ID') || DEFAULT_ROOM);
 	const result = await post(url, token, params, `announce-pr-${repo}-${pr.number}`);
 	console.log(`Announced ${repo}#${pr.number} in ${params.room_id} on ${url}: ${JSON.stringify(result)}`);

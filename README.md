@@ -1,7 +1,8 @@
 # apron-pr-bot
 
-A GitHub Action that announces merged pull requests in an [Apron](https://server.apron.chat/)
-chat room as a bot. Each announcement bolds the pull request's title, links
+A GitHub Action that announces merged pull requests in a room on your
+[Apron](https://github.com/apron-chat/apron-server-cloudflare) chat server as
+a bot. Each announcement bolds the pull request's title, links
 to it, and carries a link preview (`og` title, description, site name, and
 image) built from the pull request. The description is the first paragraph of
 the pull request body that is not only headings, or a commit and line-count
@@ -9,7 +10,7 @@ summary when there is none.
 
 ## Usage
 
-Get a bot token with `/invite-bot` on the server, store it as a secret (an
+Get a bot token with `/invite-bot` on your server, store it as a secret (an
 [environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment)
 secret keeps it away from other jobs), and add a workflow:
 
@@ -33,6 +34,7 @@ jobs:
     steps:
       - uses: apron-chat/apron-pr-bot@main
         with:
+          server-url: wss://chat.example.com/
           token: ${{ secrets.APRON_BOT_TOKEN }}
           # Optional; `general` when unset or empty.
           room-id: ${{ vars.APRON_ROOM_ID }}
@@ -45,11 +47,11 @@ request's text reaches it only as event JSON data. It also works on
 
 ## Inputs
 
-| Input        | Default                    | Description |
-| ------------ | -------------------------- | ----------- |
-| `token`      | `''`                       | Bot token from `/invite-bot`. When empty the action logs a notice and succeeds without posting. |
-| `room-id`    | `general`                  | The room to post in. |
-| `server-url` | `wss://server.apron.chat/` | The Apron server's WebSocket URL. |
+| Input        | Default   | Description |
+| ------------ | --------- | ----------- |
+| `server-url` | required  | Your Apron server's WebSocket URL, such as `wss://chat.example.com/`. |
+| `token`      | `''`      | Bot token from `/invite-bot`. When empty the action logs a notice and succeeds without posting. |
+| `room-id`    | `general` | The room to post in. |
 
 The request ID is stable per repository and pull request, so rerunning the
 job within the server's deduplication window does not post twice.
@@ -63,5 +65,5 @@ npm test
 ```
 
 To post from a shell, set `GITHUB_EVENT_PATH` to a `pull_request` event
-payload and `APRON_BOT_TOKEN` (plus optionally `APRON_ROOM_ID` and
-`APRON_URL`), then run `node announce-pr.mjs`.
+payload, `APRON_URL`, and `APRON_BOT_TOKEN` (plus optionally
+`APRON_ROOM_ID`), then run `node announce-pr.mjs`.
