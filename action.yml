@@ -17,6 +17,13 @@ inputs:
     description: The room to post in.
     required: false
     default: general
+  template:
+    description: >
+      The markdown text of the announcement, with {placeholders} such as
+      {title}, {author}, and {url}; see the README for the full list. Defaults
+      to "Merged into {base}: **{title}** by {author}" and the link below it.
+    required: false
+    default: ''
   server-url:
     description: >
       The Apron server's WebSocket URL, such as wss://chat.example.com/. There

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { announcement, escapeMarkdown, firstParagraph, input, oneLine } from './announce-pr.mjs';
+import { announcement, escapeMarkdown, firstParagraph, input, oneLine, placeholders, render } from './announce-pr.mjs';
 
 const pr = {
 	number: 12,
@@ -64,4 +64,19 @@ test('reads action inputs before their environment fallbacks', () => {
 	assert.equal(input('room-id', 'APRON_ROOM_ID', { 'INPUT_ROOM-ID': ' thread ', APRON_ROOM_ID: 'other' }), 'thread');
 	assert.equal(input('room-id', 'APRON_ROOM_ID', { 'INPUT_ROOM-ID': '', APRON_ROOM_ID: 'other' }), 'other');
 	assert.equal(input('token', 'APRON_BOT_TOKEN', {}), '');
+});
+
+test('renders a custom template with escaped pull request values', () => {
+	const template = '{repo}#{number}: {title} (+{additions} −{deletions}, {commits} commit)\n{description}\n{url} { spaced } {Not}';
+	const params = announcement({ ...pr, title: 'Use *stars*' }, 'o/my_repo', 'general', template);
+	assert.equal(params.body.text, `o/my\\_repo#12: Use \\*stars\\* (+10 −2, 1 commit)\nPosts each merged PR to the \\\`general\\\` room.\n${pr.html_url} { spaced } {Not}`);
+	assert.equal(params.body.embeds[0].og.title, 'Use *stars* · Pull Request #12');
+});
+
+test('fills every placeholder and rejects unknown ones', () => {
+	const values = placeholders({ ...pr, merged_by: { login: 'maintainer' }, head: { ref: 'feature_x' } }, 'o/r');
+	assert.equal(render('{merged_by} merged {head} into {base}', values), 'maintainer merged feature\\_x into main');
+	assert.equal(placeholders(pr, 'o/r').merged_by, 'shazow');
+	assert.equal(placeholders({ ...pr, body: null }, 'o/r').description, '');
+	assert.throws(() => render('{titel}', values), /Unknown template placeholder \{titel\}; use one of \{title\}/);
 });
