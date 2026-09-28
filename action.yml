@@ -17,6 +17,15 @@ inputs:
     description: The room to post in.
     required: false
     default: general
+  template:
+    description: >
+      The markdown text of the announcement, with ${name} placeholders such as
+      ${title}, ${author}, and ${url}; see the README for the full list. The
+      link preview below it does not depend on the template.
+    required: false
+    default: |-
+      🚢 ${repo}#${number}: **${title}** by ${author} (+${additions} −${deletions})
+      ${url}
   server-url:
     description: >
       The Apron server's WebSocket URL, such as wss://chat.example.com/. There

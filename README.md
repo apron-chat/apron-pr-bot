@@ -2,11 +2,13 @@
 
 A GitHub Action that announces merged pull requests in a room on your
 [Apron](https://github.com/apron-chat/apron-server-cloudflare) chat server as
-a bot. Each announcement bolds the pull request's title, links
-to it, and carries a link preview (`og` title, description, site name, and
+a bot. By default each announcement names the repository and pull request,
+bolds its title, credits its author, sizes the change, and links to it, with
+a link preview (`og` title, description, site name, and
 image) built from the pull request. The description is the first paragraph of
 the pull request body that is not only headings, or a commit and line-count
-summary when there is none.
+summary when there is none. The text of the announcement is a
+[template](#templates) you can replace.
 
 ## Usage
 
@@ -47,14 +49,66 @@ request's text reaches it only as event JSON data. It also works on
 
 ## Inputs
 
-| Input        | Default   | Description |
-| ------------ | --------- | ----------- |
-| `server-url` | required  | Your Apron server's WebSocket URL, such as `wss://chat.example.com/`. |
-| `token`      | `''`      | Bot token from `/invite-bot`. When empty the action logs a notice and succeeds without posting. |
-| `room-id`    | `general` | The room to post in. |
+| Input        | Default                     | Description |
+| ------------ | --------------------------- | ----------- |
+| `server-url` | required                    | Your Apron server's WebSocket URL, such as `wss://chat.example.com/`. |
+| `token`      | `''`                        | Bot token from `/invite-bot`. When empty the action logs a notice and succeeds without posting. |
+| `room-id`    | `general`                   | The room to post in. |
+| `template`   | see [Templates](#templates) | The markdown text of the announcement. |
 
 The request ID is stable per repository and pull request, so rerunning the
 job within the server's deduplication window does not post twice.
+
+## Templates
+
+The `template` input sets the markdown text of the announcement. The link
+preview (`og` embed) for the pull request is attached either way. The default
+is:
+
+```
+🚢 ${repo}#${number}: **${title}** by ${author} (+${additions} −${deletions})
+${url}
+```
+
+For example, to name the branch it merged into and who merged it:
+
+```yaml
+      - uses: apron-chat/apron-pr-bot@main
+        with:
+          server-url: wss://chat.example.com/
+          token: ${{ secrets.APRON_BOT_TOKEN }}
+          template: |
+            Merged into ${base} by ${merged_by}: **${title}**
+            ${url}
+```
+
+| Placeholder      | Value |
+| ---------------- | ----- |
+| `${title}`       | The pull request's title, on one line. |
+| `${author}`      | The login of the pull request's author. |
+| `${merged_by}`   | The login of whoever merged it (the author when unknown). |
+| `${url}`         | The pull request's URL. |
+| `${number}`      | The pull request's number. |
+| `${repo}`        | The repository, as `owner/name`. |
+| `${base}`        | The branch it merged into. |
+| `${head}`        | The branch it merged from. |
+| `${description}` | The first paragraph of its body that is not only headings, on one line, or empty. |
+| `${commits}`     | Its number of commits. |
+| `${additions}`   | Lines added. |
+| `${deletions}`   | Lines deleted. |
+
+Every value except `${url}` and the numbers is markdown-escaped, so a title or
+description cannot add its own formatting. Placeholders use JavaScript
+template literal syntax, but the template is never evaluated: only a plain
+`${name}` from the table is allowed. An unknown name, any other expression
+such as `${title.length}`, or an unclosed `${` fails the run, even without a
+token, so a mistake does not get posted. Everything outside `${…}`, including
+backticks and backslashes, is used as is.
+
+Use these placeholders rather than GitHub expressions such as
+`${{ github.event.pull_request.title }}`: GitHub pastes those into the
+template before the action runs, so the pull request's text would skip the
+escaping and could break the template.
 
 ## Development
 
@@ -66,4 +120,4 @@ npm test
 
 To post from a shell, set `GITHUB_EVENT_PATH` to a `pull_request` event
 payload, `APRON_URL`, and `APRON_BOT_TOKEN` (plus optionally
-`APRON_ROOM_ID`), then run `node announce-pr.mjs`.
+`APRON_ROOM_ID` and `APRON_TEMPLATE`), then run `node announce-pr.mjs`.
