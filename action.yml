@@ -1,0 +1,27 @@
+name: Apron PR announce
+description: Announce merged pull requests in an Apron chat room as a bot, with a link preview.
+author: Apron Chat
+branding:
+  icon: message-circle
+  color: green
+
+inputs:
+  token:
+    description: >
+      Bot token from /invite-bot. When empty the action logs a notice and
+      succeeds without posting, so forks and repositories without the secret
+      skip it.
+    required: false
+    default: ''
+  room-id:
+    description: The room to post in.
+    required: false
+    default: general
+  server-url:
+    description: The Apron server's WebSocket URL.
+    required: false
+    default: wss://server.apron.chat/
+
+runs:
+  using: node24
+  main: announce-pr.mjs
