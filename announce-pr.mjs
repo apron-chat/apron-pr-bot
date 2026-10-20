@@ -8,16 +8,12 @@
 // APRON_ROOM_ID, APRON_URL, and APRON_TEMPLATE stand in for the inputs.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { DEFAULT_ROOM, EXT_KEY, connect, input, tag } from './apron.mjs';
 
-const DEFAULT_ROOM = 'general';
-const TIMEOUT_MS = 30_000;
 const DESCRIPTION_CODE_POINTS = 300;
 // The `template` input's default in action.yml, for when it is empty or the
 // script runs outside an action.
 export const DEFAULT_TEMPLATE = '🚢 ${repo}#${number}: **${title}** by ${author} (+${additions} −${deletions})\n${url}';
-// The key of the announcement's `ext`, whose value is `owner/name@sha` with
-// the pull request's merge commit, for the deployed action to match.
-export const EXT_KEY = 'apron-pr-bot';
 
 /** `text` as one line of at most `max` code points, or '' when empty. */
 export function oneLine(text, max) {
@@ -114,54 +110,24 @@ export function announcement(pr, repo, roomId = DEFAULT_ROOM, template = DEFAULT
 				},
 			}],
 		},
-		...(pr.merge_commit_sha ? { ext: { [EXT_KEY]: `${repo}@${pr.merge_commit_sha}` } } : {}),
+		...(pr.merge_commit_sha ? { ext: { [EXT_KEY]: tag(repo, pr.merge_commit_sha) } } : {}),
 	};
 }
 
 /**
  * Connects to `url`, signs in with bot `token`, and posts `params`. Resolves
- * with the message result; rejects on a protocol error, close, or timeout.
+ * with the message result; rejects on a failed sign-in, a protocol error,
+ * close, or timeout.
  * The request ID is stable per pull request, so a rerun of the same job
  * within the server's deduplication window does not post twice.
  */
-export function post(url, token, params, requestId) {
-	return new Promise((resolve, reject) => {
-		const socket = new WebSocket(url);
-		let done = false;
-		const finish = (error, value) => {
-			if (done) return;
-			done = true;
-			clearTimeout(timer);
-			socket.close();
-			if (error) reject(error);
-			else resolve(value);
-		};
-		const timer = setTimeout(() => finish(new Error(`timed out after ${TIMEOUT_MS} ms`)), TIMEOUT_MS);
-		socket.onerror = (event) => finish(new Error(`WebSocket error: ${event.message ?? 'connection failed'}`));
-		socket.onclose = ({ code, reason }) => finish(new Error(`connection closed (${code}${reason ? `: ${reason}` : ''})`));
-		socket.onmessage = ({ data }) => {
-			let frame;
-			try {
-				frame = JSON.parse(data);
-			} catch {
-				return;
-			}
-			if (frame.method === 'server') {
-				socket.send(JSON.stringify({ id: 'auth', method: 'auth', params: { scheme: 'token', token } }));
-				socket.send(JSON.stringify({ id: requestId, method: 'message', params }));
-			} else if (frame.id === 'auth' && frame.error) {
-				finish(new Error(`auth failed: ${frame.error.message}`));
-			} else if (frame.id === requestId) {
-				if (frame.error) finish(new Error(`message failed: ${frame.error.message}`));
-				else finish(null, frame.result);
-			}
-		};
-	});
-}
-
-/** Action input `name` (as the runner passes it), else env `fallback`, trimmed; '' when neither is set. */
-export function input(name, fallback, env = process.env) {
-	return (env[`INPUT_${name.toUpperCase()}`] || env[fallback] || '').trim();
+export async function post(url, token, params, requestId) {
+	const { request, close } = await connect(url, token);
+	try {
+		return await request('message', params, requestId);
+	} finally {
+		close();
+	}
 }
 
 async function main() {

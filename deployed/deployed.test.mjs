@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { DEFAULT_REACTION, announcements, connect, included, react, recent, retrying } from './deployed.mjs';
+import { DEFAULT_REACTION, announcements, included, react, recent } from './deployed.mjs';
 
 const repo = 'apron-chat/apron-server-cloudflare';
 const bot = { user_id: 'bot_shazow', name: 'shazow bot', tier: 'bot' };
@@ -72,24 +72,6 @@ test('pages back through history until there is no more or the page limit', asyn
 	assert.equal(count, 3);
 });
 
-test('waits out one short retry_after', async () => {
-	const slept = [];
-	let attempts = 0;
-	const busy = async () => {
-		attempts++;
-		if (attempts === 1) throw Object.assign(new Error('history failed: busy'), { data: { retry_after: 2 } });
-		return 'ok';
-	};
-	assert.equal(await retrying(busy, 'history', {}, undefined, async (ms) => slept.push(ms)), 'ok');
-	assert.deepEqual(slept, [2000]);
-
-	const long = async () => {
-		throw Object.assign(new Error('history failed: later'), { data: { retry_after: 3600 } });
-	};
-	await assert.rejects(retrying(long, 'history', {}, undefined, async () => {}), /later/);
-	await assert.rejects(retrying(async () => { throw new Error('denied'); }, 'history', {}), /denied/);
-});
-
 test('asks GitHub whether a merge commit is in the deployed one', async () => {
 	const requests = [];
 	const fetchStatus = (status, body) => async (url, options) => {
@@ -136,55 +118,6 @@ test('reacts to the announcements in the deploy that lack the reaction, keeping 
 		{ method: 'reactions', params: { message_id: '300', emojis: ['✅'] }, id: `deployed-300-${deployed}` },
 		{ method: 'reactions', params: { message_id: '200', emojis: ['👀', '✅'] }, id: `deployed-200-${deployed}` },
 	]);
-});
-
-/** A stand-in for the global WebSocket that answers like an Apron server. */
-function fakeServer(answer) {
-	const sockets = [];
-	class FakeSocket {
-		constructor(url) {
-			this.url = url;
-			this.sent = [];
-			sockets.push(this);
-			queueMicrotask(() => this.receive({ method: 'server', params: { apron: 9 } }));
-		}
-		receive(frame) {
-			this.onmessage?.({ data: JSON.stringify(frame) });
-		}
-		send(data) {
-			const frame = JSON.parse(data);
-			this.sent.push(frame);
-			queueMicrotask(() => this.receive({ id: frame.id, ...answer(frame) }));
-		}
-		close() {
-			this.closed = true;
-		}
-	}
-	return { FakeSocket, sockets };
-}
-
-test('signs in with the bot token and matches replies to requests', async (t) => {
-	const { FakeSocket, sockets } = fakeServer((frame) => {
-		if (frame.method === 'auth') return { result: { you: bot } };
-		if (frame.method === 'history') return { result: { more: false } };
-		return { error: { code: -32001, message: 'nope' } };
-	});
-	t.mock.property(globalThis, 'WebSocket', FakeSocket);
-	const client = await connect('wss://chat.example/', 'apron_bot_x');
-	assert.deepEqual(client.you, bot);
-	assert.deepEqual(await client.request('history', { room_id: 'general' }), { more: false });
-	await assert.rejects(client.request('reactions', {}, 'r1'), /reactions failed: nope/);
-	client.close();
-	assert.equal(sockets[0].closed, true);
-	assert.deepEqual(sockets[0].sent.map(({ id, method }) => [id, method]), [['auth', 'auth'], ['history-1', 'history'], ['r1', 'reactions']]);
-	assert.deepEqual(sockets[0].sent[0].params, { scheme: 'token', token: 'apron_bot_x' });
-	await assert.rejects(client.request('history', {}), /connection closed/);
-});
-
-test('rejects a failed sign-in', async (t) => {
-	const { FakeSocket } = fakeServer(() => ({ error: { code: -32001, message: 'unknown token' } }));
-	t.mock.property(globalThis, 'WebSocket', FakeSocket);
-	await assert.rejects(connect('wss://chat.example/', 'bad'), /auth failed: unknown token/);
 });
 
 test('defaults to the same reaction as action.yml', () => {

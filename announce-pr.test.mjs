@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { DEFAULT_TEMPLATE, announcement, escapeMarkdown, firstParagraph, input, oneLine, placeholders, render } from './announce-pr.mjs';
+import { DEFAULT_TEMPLATE, announcement, escapeMarkdown, firstParagraph, oneLine, placeholders, post, render } from './announce-pr.mjs';
+import { fakeServer } from './fake-server.mjs';
 
 const pr = {
 	number: 12,
@@ -66,12 +67,6 @@ test('escapes markdown in the title and author', () => {
 	assert.equal(params.body.text, `🚢 o/r#12: **\\*\\*Bold\\*\\* claims** by dependabot\\[bot\\] (+10 −2)\n${pr.html_url}`);
 });
 
-test('reads action inputs before their environment fallbacks', () => {
-	assert.equal(input('room-id', 'APRON_ROOM_ID', { 'INPUT_ROOM-ID': ' thread ', APRON_ROOM_ID: 'other' }), 'thread');
-	assert.equal(input('room-id', 'APRON_ROOM_ID', { 'INPUT_ROOM-ID': '', APRON_ROOM_ID: 'other' }), 'other');
-	assert.equal(input('token', 'APRON_BOT_TOKEN', {}), '');
-});
-
 test('renders a custom template with escaped pull request values', () => {
 	const template = '${repo}#${number}: ${ title } (+${additions} −${deletions}, ${commits} commit)\n${description}\n${url} {title} $title `code`';
 	const params = announcement({ ...pr, title: 'Use *stars* ${author}' }, 'o/my_repo', 'general', template);
@@ -97,4 +92,31 @@ test('falls back to the same template as the default in action.yml', () => {
 	const block = yml.match(/\n  template:\n[\s\S]*?\n    default: \|-\n((?: {6}.*\n)+)/);
 	assert.ok(block, 'action.yml has a block default for template');
 	assert.equal(block[1].replace(/^ {6}/gm, '').trimEnd(), DEFAULT_TEMPLATE);
+});
+
+test('posts the announcement after signing in, with its stable request ID', async (t) => {
+	const { FakeSocket, sockets } = fakeServer((frame) => (frame.method === 'auth'
+		? { result: { you: { user_id: 'bot_shazow' } } }
+		: { result: { message_id: '42' } }));
+	t.mock.property(globalThis, 'WebSocket', FakeSocket);
+	const params = announcement(pr, 'o/r');
+	assert.deepEqual(await post('wss://chat.example/', 'apron_bot_x', params, 'announce-pr-o/r-12'), { message_id: '42' });
+	assert.deepEqual(sockets[0].sent.map(({ id, method }) => [id, method]), [['auth', 'auth'], ['announce-pr-o/r-12', 'message']]);
+	assert.deepEqual(sockets[0].sent[1].params, params);
+	assert.equal(sockets[0].closed, true);
+});
+
+test('does not post when signing in fails', async (t) => {
+	const { FakeSocket, sockets } = fakeServer(() => ({ error: { code: -32001, message: 'unknown token' } }));
+	t.mock.property(globalThis, 'WebSocket', FakeSocket);
+	await assert.rejects(post('wss://chat.example/', 'bad', announcement(pr, 'o/r'), 'id'), /auth failed: unknown token/);
+	assert.deepEqual(sockets[0].sent.map(({ method }) => method), ['auth']);
+});
+
+test('reports a refused message', async (t) => {
+	const { FakeSocket } = fakeServer((frame) => (frame.method === 'auth'
+		? { result: { you: { user_id: 'bot_shazow' } } }
+		: { error: { code: -32001, message: 'denied' } }));
+	t.mock.property(globalThis, 'WebSocket', FakeSocket);
+	await assert.rejects(post('wss://chat.example/', 'apron_bot_x', announcement(pr, 'o/r'), 'id'), /message failed: denied/);
 });
