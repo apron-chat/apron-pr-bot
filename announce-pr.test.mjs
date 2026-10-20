@@ -32,6 +32,11 @@ test('announces a merged pull request with a link preview', () => {
 			image: { url: 'https://opengraph.githubassets.com/abc123/apron-chat/apron-server-cloudflare/pull/12', width: 1200, height: 600 },
 		},
 	}]);
+	assert.deepEqual(params.ext, { 'apron-pr-bot': 'apron-chat/apron-server-cloudflare@abc123' });
+});
+
+test('leaves out the ext tag without a merge commit', () => {
+	assert.equal(announcement({ ...pr, merge_commit_sha: null }, 'o/r').ext, undefined);
 });
 
 test('falls back to a summary without a body and honors the room', () => {

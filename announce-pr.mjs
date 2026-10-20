@@ -15,6 +15,9 @@ const DESCRIPTION_CODE_POINTS = 300;
 // The `template` input's default in action.yml, for when it is empty or the
 // script runs outside an action.
 export const DEFAULT_TEMPLATE = '🚢 ${repo}#${number}: **${title}** by ${author} (+${additions} −${deletions})\n${url}';
+// The key of the announcement's `ext`, whose value is `owner/name@sha` with
+// the pull request's merge commit, for the deployed action to match.
+export const EXT_KEY = 'apron-pr-bot';
 
 /** `text` as one line of at most `max` code points, or '' when empty. */
 export function oneLine(text, max) {
@@ -87,7 +90,8 @@ export function render(template, values) {
 
 /**
  * The `message` params announcing merged pull request `pr` of `repo`
- * (`owner/name`) in `roomId`, with `template` as the markdown text.
+ * (`owner/name`) in `roomId`, with `template` as the markdown text, tagged in
+ * `ext` with its merge commit when the event names one.
  */
 export function announcement(pr, repo, roomId = DEFAULT_ROOM, template = DEFAULT_TEMPLATE) {
 	const author = pr.user?.login ?? 'someone';
@@ -110,6 +114,7 @@ export function announcement(pr, repo, roomId = DEFAULT_ROOM, template = DEFAULT
 				},
 			}],
 		},
+		...(pr.merge_commit_sha ? { ext: { [EXT_KEY]: `${repo}@${pr.merge_commit_sha}` } } : {}),
 	};
 }
 

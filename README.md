@@ -59,6 +59,67 @@ request's text reaches it only as event JSON data. It also works on
 The request ID is stable per repository and pull request, so rerunning the
 job within the server's deduplication window does not post twice.
 
+Each announcement carries the pull request's merge commit in its `ext`, as
+`{"apron-pr-bot": "owner/name@<merge commit SHA>"}`, so the
+[deployed](#reacting-on-deploy) action can find it.
+
+## Reacting on deploy
+
+The `apron-chat/apron-pr-bot/deployed` action reacts to the announcements of
+pull requests once they are deployed. Run it after your deploy succeeds, as
+the same bot:
+
+```yaml
+  deployed:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: announce
+    steps:
+      - uses: apron-chat/apron-pr-bot/deployed@main
+        with:
+          server-url: wss://chat.example.com/
+          token: ${{ secrets.APRON_BOT_TOKEN }}
+          room-id: ${{ vars.APRON_ROOM_ID }}
+```
+
+It reads the room's recent history (the last 400 records) for the bot's own
+announcements of this repository, and adds the reaction to each one whose
+merge commit is the deployed commit or an ancestor of it, so a deploy that
+ships several pull requests at once marks them all. Announcements it already
+reacted to, ones from before announcements carried the merge commit, and
+ones merged after the deployed commit are left alone. Whether a merge commit
+is an ancestor comes from GitHub's compare API, with `github-token`, which
+needs `contents: read`. The bot's other reactions on an announcement are kept.
+
+| Input          | Default               | Description |
+| -------------- | --------------------- | ----------- |
+| `server-url`   | required              | Your Apron server's WebSocket URL. |
+| `token`        | `''`                  | The announcing bot's token. When empty the action logs a notice and succeeds without reacting. |
+| `room-id`      | `general`             | The room the announcements were posted in. |
+| `reaction`     | `✅`                  | The emoji to react with. When empty the action logs a notice and succeeds without reacting. |
+| `sha`          | `${{ github.sha }}`   | The deployed commit. |
+| `github-token` | `${{ github.token }}` | A token that can read the repository, for the compare API. |
+
+When the deploy is not a job of the same workflow, pass the deployed commit as
+`sha`. For example, for Cloudflare Workers Builds, which posts a check run
+when it deploys:
+
+```yaml
+on:
+  check_run:
+    types: [completed]
+
+jobs:
+  deployed:
+    if: >-
+      github.event.check_run.name == 'Workers Builds: my-worker' &&
+      github.event.check_run.conclusion == 'success' &&
+      github.event.check_run.check_suite.head_branch == 'main'
+    # …as above, with:
+    #   sha: ${{ github.event.check_run.head_sha }}
+```
+
 ## Templates
 
 The `template` input sets the markdown text of the announcement. The link
@@ -120,4 +181,7 @@ npm test
 
 To post from a shell, set `GITHUB_EVENT_PATH` to a `pull_request` event
 payload, `APRON_URL`, and `APRON_BOT_TOKEN` (plus optionally
-`APRON_ROOM_ID` and `APRON_TEMPLATE`), then run `node announce-pr.mjs`.
+`APRON_ROOM_ID` and `APRON_TEMPLATE`), then run `node announce-pr.mjs`. To
+react from a shell, set `GITHUB_REPOSITORY`, `GITHUB_SHA`, `APRON_URL`, and
+`APRON_BOT_TOKEN` (plus optionally `APRON_ROOM_ID`, `APRON_REACTION`, and
+`GITHUB_TOKEN`), then run `node deployed/deployed.mjs`.
