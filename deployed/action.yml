@@ -1,0 +1,42 @@
+name: Apron PR deployed
+description: React to merged pull requests' Apron announcements once the commit they merged in is deployed.
+author: Apron Chat
+
+inputs:
+  token:
+    description: >
+      Bot token from /invite-bot, the same bot that posts the announcements.
+      When empty the action logs a notice and succeeds without reacting.
+    required: false
+    default: ''
+  room-id:
+    description: The room the announcements were posted in.
+    required: false
+    default: general
+  reaction:
+    description: >
+      The emoji to react with. When empty the action logs a notice and
+      succeeds without reacting.
+    required: false
+    default: ✅
+  sha:
+    description: >
+      The deployed commit. Announcements whose merge commit is this commit or
+      an ancestor of it get the reaction.
+    required: false
+    default: ${{ github.sha }}
+  github-token:
+    description: >
+      A token that can read the repository's contents, for GitHub's compare
+      API, which says whether an announced merge commit is in the deployed one.
+    required: false
+    default: ${{ github.token }}
+  server-url:
+    description: >
+      The Apron server's WebSocket URL, such as wss://chat.example.com/. There
+      is no default, so no project posts to a server it did not choose.
+    required: true
+
+runs:
+  using: node24
+  main: deployed.mjs

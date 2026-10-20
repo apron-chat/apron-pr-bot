@@ -7,6 +7,6 @@
 		"node": ">=22"
 	},
 	"scripts": {
-		"test": "node --test announce-pr.test.mjs"
+		"test": "node --test apron.test.mjs announce-pr.test.mjs deployed/deployed.test.mjs"
 	}
 }
